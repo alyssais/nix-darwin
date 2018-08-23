@@ -44,8 +44,7 @@
       pkgs.silver-searcher
 
       pkgs.qes
-
-      pkgs.lnl-zsh-completions
+      pkgs.darwin-zsh-completions
     ];
 
   services.khd.enable = true;
@@ -53,8 +52,8 @@
   services.skhd.enable = true;
 
   launchd.user.agents.fetch-nixpkgs = {
-    command = "${pkgs.git}/bin/git -C ~/.nix-defexpr/nixpkgs fetch origin master";
-    environment.GIT_SSL_CAINFO = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+    command = "${pkgs.git}/bin/git -C /src/nixpkgs fetch origin master";
+    environment.SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
     serviceConfig.KeepAlive = false;
     serviceConfig.ProcessType = "Background";
     serviceConfig.StartInterval = 360;
@@ -83,109 +82,57 @@
   programs.tmux.enableVim = true;
 
   programs.tmux.tmuxConfig = ''
-    bind-key -n M-r run "tmux send-keys -t .+ C-l Up Enter"
-    bind-key -n M-R run "tmux send-keys -t $(hostname -s | awk -F'-' '{print tolower($NF)}') C-l Up Enter"
-
     bind 0 set status
     bind S choose-session
 
     bind-key -r "<" swap-window -t -1
     bind-key -r ">" swap-window -t +1
 
+    bind-key -n M-r run "tmux send-keys -t .+ C-l Up Enter"
+    bind-key -n M-R run "tmux send-keys -t $(hostname -s | awk -F'-' '{print tolower($NF)}') C-l Up Enter"
+
+    set -g pane-active-border-style fg=black
+    set -g pane-border-style fg=black
     set -g status-bg black
     set -g status-fg white
+    set -g status-right '#[fg=white]#(id -un)@#(hostname)   #(cat /run/current-system/darwin-version)'
   '';
 
-  programs.vim.enable = true;
-  programs.vim.enableSensible = true;
+  # programs.vim.enable = true;
+  # programs.vim.enableSensible = true;
+  programs.vim.package = pkgs.vim_configurable.customize {
+    name = "vim";
+    vimrcConfig.packages.darwin.start = with pkgs.vimPlugins; [
+      vim-sensible vim-surround ReplaceWithRegister
+      polyglot fzfWrapper YouCompleteMe ale
+    ];
+    vimrcConfig.packages.darwin.opt = with pkgs.vimPlugins; [
+      colors-solarized
+      splice-vim
+    ];
+    vimrcConfig.customRC = ''
+      set completeopt=menuone
+      set encoding=utf-8
+      set hlsearch
+      set list
+      set number
+      set showcmd
+      set splitright
 
-  programs.vim.plugins = [
-    { names = [ "commentary" "vim-eunuch" "repeat" "tabular" "ReplaceWithRegister" "vim-indent-object" "vim-sort-motion" ]; }
-    { names = [ "fzfWrapper" "fzf-vim" "youcompleteme" "ale" "vim-gitgutter" "vim-dispatch" ]; }
-    { names = [ "fugitive" "rhubarb" "gist-vim" "webapi-vim" ]; }
-    { names = [ "polyglot" "bats-vim" "colors-solarized" "editorconfig-vim" ]; }
-  ];
+      nnoremap // :nohlsearch<CR>
 
-  programs.vim.vimConfig =  ''
-    colorscheme solarized
-    set bg=dark
+      let mapleader = ' '
 
-    set synmaxcol=4096
+      " fzf
+      nnoremap <Leader>p :FZF<CR>
 
-    set lazyredraw
-    set regexpengine=1
-    set ttyfast
+      " vim-surround
+      vmap s S
 
-    set clipboard=unnamed
-    set mouse=a
-
-    set backup
-    set backupdir=~/.vim/tmp/backup//
-    set backupskip=/tmp/*,/private/tmp/*
-    set directory=~/.vim/tmp/swap/
-    set noswapfile
-    set undodir=~/.vim/tmp/undo//
-    set undofile
-
-    if !isdirectory(expand(&undodir))
-      call mkdir(expand(&undodir), "p")
-    endif
-    if !isdirectory(expand(&backupdir))
-      call mkdir(expand(&backupdir), "p")
-    endif
-    if !isdirectory(expand(&directory))
-      call mkdir(expand(&directory), "p")
-    endif
-
-    vmap s S
-
-    inoremap <C-g> <Esc><CR>
-    vnoremap <C-g> <Esc><CR>
-    cnoremap <C-g> <Esc><CR>
-
-    cnoremap %% <C-r>=expand('%:h') . '/'<CR>
-
-    let mapleader = ' '
-    nnoremap <Leader>( :tabprevious<CR>
-    nnoremap <Leader>) :tabnext<CR>
-
-    nnoremap <Leader>! :Dispatch!<CR>
-    nnoremap <Leader>p :FZF<CR>
-    nnoremap <silent> <Leader>e :exe 'FZF ' . expand('%:h')<CR>
-
-    nmap <leader><tab> <plug>(fzf-maps-n)
-    xmap <leader><tab> <plug>(fzf-maps-x)
-    omap <leader><tab> <plug>(fzf-maps-o)
-    imap <c-x><c-w> <plug>(fzf-complete-word)
-
-    command! -bang -nargs=* Ag call fzf#vim#ag(<q-args>,
-          \   <bang>0 ? fzf#vim#with_preview('up:30%')
-          \   : fzf#vim#with_preview('right:50%:hidden', '?'),
-          \   <bang>0)
-
-    command! -bang -nargs=* Rg call fzf#vim#grep(
-          \   'rg --column --line-number --no-heading --color=always '.shellescape(<q-args>), 1,
-          \   <bang>0 ? fzf#vim#with_preview('up:30%')
-          \           : fzf#vim#with_preview('right:50%:hidden', '?'),
-          \   <bang>0)
-
-    highlight clear SignColumn
-
-    let g:is_bash=1
-
-    let g:ale_virtualenv_dir_names = ['venv']
-
-    " let g:ycm_add_preview_to_completeopt = 1
-    let g:ycm_autoclose_preview_window_after_completion = 1
-    let g:ycm_autoclose_preview_window_after_insertion = 1
-
-    let g:ycm_seed_identifiers_with_syntax = 1
-    let g:ycm_semantic_triggers = {}
-
-    nmap <Leader>D :YcmCompleter GetDoc<CR>
-    nmap <Leader>d :YcmCompleter GoToDefinition<CR>
-    nmap <Leader>r :YcmCompleter GoToReferences<CR>
-  '';
+      " youcompleteme
+      let g:ycm_seed_identifiers_with_syntax = 1
+    '';
+  };
 
   programs.zsh.enable = true;
   programs.zsh.enableBashCompletion = true;
@@ -212,16 +159,20 @@
   '';
 
   programs.zsh.loginShellInit = ''
-    :l() {
-        if [ ! -e .envrc ]; then
-            echo 'use nix' > .envrc
-        fi
-        direnv allow
-        eval "$(direnv hook zsh)"
+    :a() {
+        nix repl ''${@:-<darwinpkgs>}
     }
 
-    :r() {
-        direnv reload
+    :u() {
+        nix run -f '<darwinpkgs>' "$@"
+    }
+
+    :d() {
+        if [ -z "$IN_NIX_SHELL" ]; then
+            eval "$(direnv hook zsh)"
+        else
+            direnv reload
+        fi
     }
 
     xi() {
@@ -232,12 +183,12 @@
         ${pkgs.darwin.cctools}/bin/install_name_tool "$@"
     }
 
-    otool() {
-        ${pkgs.darwin.cctools}/bin/otool "$@"
+    nm() {
+        ${pkgs.darwin.cctools}/bin/nm "$@"
     }
 
-    pkgs() {
-        nix repl ''${@:-<nixpkgs>}
+    otool() {
+        ${pkgs.darwin.cctools}/bin/otool "$@"
     }
 
     aarch-build() {
@@ -329,7 +280,7 @@
         unset __ETC_ZSHENV_SOURCED
         unset __ETC_ZPROFILE_SOURCED
         host=$(hostname -s | awk -F'-' '{print tolower($NF)}')
-        exec tmux new-session -A -s $host
+        exec tmux new-session -A -s "$host" "$@"
     }
   '';
 
@@ -344,21 +295,28 @@
     zle -N up-line-or-beginning-search
   '';
 
-  environment.variables.FZF_DEFAULT_COMMAND = "ag -l -f -g ''";
-  environment.variables.SHELLCHECK_OPTS = "-e SC1008";
   environment.variables.LANG = "en_US.UTF-8";
 
+  environment.shellAliases.e = "$EDITOR";
   environment.shellAliases.g = "git log --pretty=color -32";
   environment.shellAliases.gb = "git branch";
   environment.shellAliases.gc = "git checkout";
   environment.shellAliases.gcb = "git checkout -B";
   environment.shellAliases.gd = "git diff --minimal --patch";
   environment.shellAliases.gf = "git fetch";
-  environment.shellAliases.gl = "git log --pretty=color --graph";
-  environment.shellAliases.glog = "git log --pretty=nocolor";
+  environment.shellAliases.gg = "git log --pretty=color --graph";
+  environment.shellAliases.gl = "git log --pretty=nocolor";
   environment.shellAliases.grh = "git reset --hard";
   environment.shellAliases.l = "ls -lh";
-  environment.shellAliases.ls = "ls -G";
+
+  environment.extraInit = ''
+    # Load and export variables from environment.d.
+    if [ -d /etc/environment.d ]; then
+        set -a
+        . /etc/environment.d/*
+        set +a
+    fi
+  '';
 
   nix.nixPath =
     [ # Use local nixpkgs checkout instead of channels.
@@ -373,7 +331,7 @@
 
   nixpkgs.overlays = [
     (self: super: {
-      lnl-zsh-completions = super.runCommandNoCC "lnl-zsh-completions-0.0.0"
+      darwin-zsh-completions = super.runCommandNoCC "darwin-zsh-completions-0.0.0"
         { preferLocalBuild = true; }
         ''
           mkdir -p $out/share/zsh/site-functions
@@ -406,33 +364,12 @@
           esac
           EOF
         '';
+
+      vim_configurable = super.vim_configurable.override {
+        guiSupport = "no";
+      };
     })
   ];
-
-  # TODO: add module for per-user config, etc, ...
-  system.activationScripts.extraUserActivation.text = "ln -sfn /etc/per-user/lnl/gitconfig ~/.gitconfig";
-
-  environment.etc."per-user/lnl/gitconfig".text = ''
-    [include]
-      path = .gitconfig.local
-
-    [core]
-      excludesfile = ~/.gitignore
-      autocrlf     = input
-
-    [color]
-      ui = auto
-
-    [pretty]
-      color = format:%C(yellow)%h%Cblue%d%Creset %s %C(white)  %an, %ar%Creset
-      nocolor = format:%h%d %s   %an, %ar
-
-    [user]
-      name = Daiderd Jordan
-
-    [github]
-      user = LnL7
-  '';
 
   services.khd.khdConfig = ''
     # modifier only mappings
@@ -450,7 +387,7 @@
     kwmc config padding 40 15 15 15
     kwmc config gap     15 15
 
-    kwmc config space   0 3 padding 125 125 125 125
+    kwmc config space   0 3 padding 175 175 175 175
     kwmc config display 1   padding 75 70 70 70
     kwmc config display 2   padding 75 70 70 70
 
@@ -481,8 +418,6 @@
     kwmc rule owner="iTerm2" properties={role="AXDialog"}
     kwmc rule owner="iTunes" properties={float="true"}
   '';
-
-  services.skhd.package = pkgs.skhd;
 
   services.skhd.skhdConfig = ''
     # focus window
@@ -539,9 +474,39 @@
     ctrl + alt - s : kwmc space -t monocle
     ctrl + alt - d : kwmc space -t float
 
+    ctrl + alt - return : kitty --single-instance -d ~
+
     # quit/reload daemons
     ctrl + alt - q : kwmc quit;\
                      khd -e "reload"
+  '';
+
+  # TODO: add module for per-user config, etc, ...
+  system.activationScripts.extraUserActivation.text = "ln -sfn /etc/per-user/lnl/gitconfig ~/.gitconfig";
+
+  environment.etc."per-user/lnl/gitconfig".text = ''
+    [include]
+      path = .gitconfig.local
+
+    [core]
+      excludesfile = ~/.gitignore
+      autocrlf     = input
+
+    [color]
+      ui = auto
+
+    [pretty]
+      color = format:%C(yellow)%h%C(red)%d%Creset %s   %C(green)%an, %ar%Creset
+      nocolor = format:%h%d %s   %an, %ar
+
+    [rerere]
+      enabled = true
+
+    [user]
+      name = Daiderd Jordan
+
+    [github]
+      user = LnL7
   '';
 
   # You should generally set this to the total number of logical cores in your system.
